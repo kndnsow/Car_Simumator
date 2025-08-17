@@ -206,9 +206,9 @@ class GameEngine {
                             await elem.requestFullscreen();
                         }
                         
-                        if (screen.orientation && screen.orientation.lock) {
-                            await screen.orientation.lock('landscape');
-                        }
+                        // if (screen.orientation && screen.orientation.lock) {
+                        //     await screen.orientation.lock('landscape');
+                        // }
                     } catch (error) {
                         console.warn(`Could not set fullscreen or lock orientation: ${error}`);
                     }
