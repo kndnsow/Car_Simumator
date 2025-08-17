@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Racing Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    
+    <div id="gameContainer">
+        
+    </div>
+
+    
+    <div id="gameUI">
+        
+        <div class="ui-top">
+            <div class="ui-score">
+                <span class="label">SCORE</span>
+                <span class="value" id="scoreValue">0</span>
+                <div class="info-upgrades-container" id="infoUpgradesContainer"></div>
+            </div>
+
+            <div class="acquired-upgrades-container" id="acquiredUpgradesContainer"></div>
+
+            
+
+            <div class="ui-speed">
+                <span class="label">SPEED</span>
+                <span class="value" id="speedValue">0</span>
+                <span class="unit">KM/H</span>
+                <div class="current-upgrades-container" id="currentUpgradesContainer">
+                    <span class="current-upgrades-label">CAR UPGRADES</span>
+                    <div class="icon-list" id="currentUpgradesIconList">
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="ui-bottom">
+            <button class="control-btn brake-btn" id="brakeBtn">
+                <span>BRAKE</span>
+            </button>
+            <button class="control-btn accelerate-btn" id="accelerateBtn">
+                <span>ACCELERATE</span>
+            </button>
+        </div>
+        
+        <div class="permission-modal hidden" id="permissionModal">
+             <div class="modal-content">
+                <h3>Motion Controls Test</h3>
+                <p>Tilt your device left and right to steer. Watch the indicator below to confirm it's working.</p>
+                
+                
+                <div class="motion-indicator-bar">
+                    <div class="motion-indicator-dot" id="motionIndicatorDot"></div>
+                </div>
+
+                <button class="btn btn--primary" id="confirmMotionBtn">Confirm & Start</button>
+                <button class="btn btn--secondary" id="skipMotionBtn">Skip (Use Touch)</button>
+            </div>
+        </div>
+
+        
+        <div class="start-screen" id="startScreen">
+            <div class="start-content">
+                <h1>3D RACING GAME</h1>
+                <p>Experience high-speed racing with realistic physics and challenging obstacles!</p>
+                <div class="controls-info">
+                     <div class="control-group">
+                        <h4>PC Controls</h4>
+                        <p>• Arrow Keys or WASD: Steer & Accelerate</p><p>• W/↑: Accelerate</p><p>• S/↓: Brake</p><p>• A/←: Turn Left</p><p>• D/→: Turn Right</p>
+                    </div>
+                    <div class="control-group">
+                        <h4>Mobile Controls</h4>
+                        <p>• Tilt device to steer</p><p>• Touch buttons to accelerate/brake</p><p>• Collect upgrades to improve your car</p><p>• Avoid obstacles to survive!</p>
+                    </div>
+                </div>
+                <button class="btn btn--primary btn--lg" id="startGameBtn">START RACING</button>
+            </div>
+        </div>
+        <div class="game-over-screen hidden" id="gameOverScreen">
+            <div class="game-over-content">
+                <h2>GAME OVER</h2>
+                
+                <div class="final-stats">
+                     <div class="stat">
+                        <div class="stat-label">FINAL SCORE</div>
+                        <div class="stat-value" id="finalScore">0</div>
+                        <div class="stat-unit">PTS</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">POTENTIAL TOP SPEED</div>
+                        <div class="stat-value" id="potentialTopSpeed">0</div>
+                        <div class="stat-unit">KM/H</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">MAX SPEED REACHED</div>
+                        <div class="stat-value" id="maxSpeedReached">0</div>
+                         <div class="stat-unit">KM/H</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">TOTAL UPGRADES HELD</div>
+                        <div class="stat-value" id="maxUpgradesHeld">0</div>
+                        <div class="stat-unit">ITEMS</div>
+                    </div>
+                </div>
+
+                <div class="game-over-buttons">
+                    <button class="btn btn--primary" id="restartBtn">PLAY AGAIN</button>
+                    <button class="btn btn--secondary" id="mainMenuBtn">MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+        <div class="instructions hidden" id="instructions">
+            Press WASD or Arrow Keys to drive • Collect upgrades • Avoid obstacles
+        </div>
+    </div>
+
+    
+    <script src="three.min.js"></script>
+    <script src="cannon.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
