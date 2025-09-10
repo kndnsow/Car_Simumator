@@ -1,14 +1,14 @@
 const CONFIG = {
     gameSettings: {
-        maxSpeed: 60, 
-        acceleration: 0.4, 
-        deceleration: 0.96,
-        turnSpeed: 0.03, 
+        maxSpeed: 60,
+        acceleration: 0.4,
+        deceleration: 1,
+        turnSpeed: 0.007,
         cameraDistance: 20,
         cameraHeight: 10,
-        roadWidth: 40, 
-        roadSegmentLength: 50, 
-        segmentsAhead: 12, 
+        roadWidth: 40,
+        roadSegmentLength: 50,
+        segmentsAhead: 12,
         segmentsBehind: 5
     },
     carPhysics: {
@@ -19,19 +19,20 @@ const CONFIG = {
         collisionSpeedThreshold: 50
     },
     obstacleSettings: {
-        spawnChance: 0.2, 
+        spawnChance: 0.25, 
         boxSizes: [1.5, 2, 2.5],
         sphereRadius: 1.8,
-        maxObstaclesPerSegment: 2, 
-        spawnDistance: 100 
+        maxObstaclesPerSegment: 2,
+        spawnDistance: 100
     },
     upgradeSettings: {
-        spawnChance: 0.05, 
+        spawnChance: 0.05,
         maxSpeedBoost: 10,
+        brakeForce: 0.1,
         collisionResistanceBoost: 15,
-        dragReduction: 0.02,
+        turnSpeedBoost: 0.001, 
         brakeImprovement: 0.1,
-        spawnDistance: 120 
+        spawnDistance: 120
     },
     roadGeneration: {
         curveIntensity: 0.08,
@@ -51,10 +52,10 @@ let gameState = {
     score: 0,
     speed: 0,
     maxSpeedReached: 0,
-    upgradesCollected: 0, 
+    upgradesCollected: 0,
     distance: 0,
-    potentialTopSpeed: 0, 
-    maxUpgradesHeld: 0    
+    potentialTopSpeed: 0,
+    maxUpgradesHeld: 0
 };
 
 let scene, camera, renderer, world, car, roadManager, obstacleManager, upgradeManager, gameEngine;
@@ -80,13 +81,13 @@ const upgradeInfo = {
         color: '#00aaff',
         icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
         name: 'Resistance',
-        description: `Lose fewer upgrades on high-speed collisions.`
+        description: `Withstands higher speed collisions before losing upgrades.`
     },
     'tires': {
         color: '#aa00ff',
         icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`,
         name: 'Better Tires',
-        description: 'Reduces drag for faster acceleration.'
+        description: `Increases turn speed for better handling.` 
     },
     'brakes': {
         color: '#00ffaa',
@@ -105,6 +106,7 @@ class GameEngine {
     constructor() {
         this.clock = new THREE.Clock();
         this.isRunning = false;
+        this.isPaused = false;
         this.init();
     }
 
@@ -187,15 +189,18 @@ class GameEngine {
             potentialTopSpeed: document.getElementById('potentialTopSpeed'),
             maxSpeedReached: document.getElementById('maxSpeedReached'),
             maxUpgradesHeld: document.getElementById('maxUpgradesHeld'),
-            finalScore: document.getElementById('finalScore')
+            finalScore: document.getElementById('finalScore'),
+            pauseScreen: document.getElementById('pauseScreen'),
+            pauseScore: document.getElementById('pauseScore'),
+            pauseMaxSpeed: document.getElementById('pauseMaxSpeed'),
+            pauseUpgradesHeld: document.getElementById('pauseUpgradesHeld'),
+            totalPlayTime: document.getElementById('totalPlayTime'),
+            totalCollisions: document.getElementById('totalCollisions'),
         };
         document.getElementById('startGameBtn').addEventListener('click', () => {
-            
             if (this.isMobile() && typeof DeviceOrientationEvent !== 'undefined') {
-                
                 if (uiElements.infoUpgradesContainer && uiElements.permissionModal) {
                     uiElements.permissionModal.querySelectorAll(".modal-content")[0].appendChild(uiElements.infoUpgradesContainer);
-                    
                 }
                 if (uiElements.startScreen) uiElements.startScreen.classList.add('hidden');
                 uiElements.permissionModal.classList.remove('hidden');
@@ -205,24 +210,24 @@ class GameEngine {
                         if (elem.requestFullscreen) {
                             await elem.requestFullscreen();
                         }
-                        
-                        // if (screen.orientation && screen.orientation.lock) {
-                        //     await screen.orientation.lock('landscape');
-                        // }
+                        if (screen.orientation && screen.orientation.lock) {
+                            await screen.orientation.lock('landscape');
+                        }
                     } catch (error) {
                         console.warn(`Could not set fullscreen or lock orientation: ${error}`);
                     }
                 };
 
                 enterFullscreenAndLock();
-                this.enableGyroListener(); 
+                this.enableGyroListener();
             } else {
-                
                 this.startGame();
             }
         });
         document.getElementById('restartBtn').addEventListener('click', () => this.restartGame());
         document.getElementById('mainMenuBtn').addEventListener('click', () => this.showMainMenu());
+        document.getElementById('resumeBtn').addEventListener('click', () => this.togglePause());
+        document.getElementById('pauseMainMenuBtn').addEventListener('click', () => this.showMainMenu());
         const confirmMotionBtn = document.getElementById('confirmMotionBtn');
         const skipMotionBtn = document.getElementById('skipMotionBtn');
         if (confirmMotionBtn) confirmMotionBtn.addEventListener('click', () => this.confirmMotionControls());
@@ -265,6 +270,7 @@ class GameEngine {
                 case 'ArrowRight': case 'd': case 'D': inputState.turnRight = true; break;
                 case 'ArrowUp': case 'w': case 'W': inputState.accelerate = true; break;
                 case 'ArrowDown': case 's': case 'S': inputState.brake = true; break;
+                case 'Escape': this.togglePause(); break;
             }
         });
         window.addEventListener('keyup', (event) => {
@@ -291,20 +297,17 @@ class GameEngine {
     }
     
     confirmMotionControls() {
-        
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission().then(response => {
                 inputState.gyroEnabled = (response === 'granted');
                 uiElements.permissionModal.classList.add('hidden');
-                this.startGame(); 
+                this.startGame();
             }).catch(() => {
-                
                 inputState.gyroEnabled = false;
                 uiElements.permissionModal.classList.add('hidden');
                 this.startGame();
             });
         } else {
-            
             inputState.gyroEnabled = true;
             uiElements.permissionModal.classList.add('hidden');
             this.startGame();
@@ -318,7 +321,6 @@ class GameEngine {
     }
 
     enableGyroListener() {
-        
         window.addEventListener('deviceorientation', (event) => {
             const tilt = Math.max(-1, Math.min(1, event.gamma / 30));
             inputState.gyroTilt = - tilt;
@@ -344,17 +346,19 @@ class GameEngine {
         gameState.distance = 0;
         gameState.maxUpgradesHeld = 0;
         gameState.potentialTopSpeed = CONFIG.gameSettings.maxSpeed;
+        gameState.totalPlayTime = 0;
+        gameState.totalCollisions = 0;
+        if (car) car.reset();
+        if (roadManager) roadManager.reset();
+        if (obstacleManager) obstacleManager.reset();
+        if (upgradeManager) upgradeManager.reset();
         if (uiElements.startScreen) uiElements.startScreen.classList.add('hidden');
-        this.updateCurrentUpgradesDisplay();
+        this.updateCurrentUpgradesDisplay(); 
         if (uiElements.acquiredUpgradesContainer) uiElements.acquiredUpgradesContainer.innerHTML = '';
         if (uiElements.instructions) {
             uiElements.instructions.classList.remove('hidden');
             setTimeout(() => { if (uiElements.instructions) uiElements.instructions.classList.add('hidden'); }, 5000);
         }
-        if (car) car.reset();
-        if (roadManager) roadManager.reset();
-        if (obstacleManager) obstacleManager.reset();
-        if (upgradeManager) upgradeManager.reset();
         this.isRunning = true;
         this.gameLoop();
     }
@@ -367,7 +371,9 @@ class GameEngine {
     showMainMenu() {
         gameState.scene = 'start';
         this.isRunning = false;
+        this.isPaused = false;
         if (uiElements.gameOverScreen) uiElements.gameOverScreen.classList.add('hidden');
+        if (uiElements.pauseScreen) uiElements.pauseScreen.classList.add('hidden');
         if (uiElements.startScreen) uiElements.startScreen.classList.remove('hidden');
     }
 
@@ -376,7 +382,6 @@ class GameEngine {
         gameState.scene = 'gameOver';
         this.isRunning = false;
 
-        
         if (uiElements.finalScore) {
             uiElements.finalScore.textContent = Math.floor(gameState.score);
         }
@@ -390,14 +395,24 @@ class GameEngine {
             uiElements.maxUpgradesHeld.textContent = gameState.maxUpgradesHeld;
         }
 
+        if (uiElements.totalPlayTime) {
+            uiElements.totalPlayTime.textContent = gameState.totalPlayTime.toFixed(1);
+        }
+
+        if (uiElements.totalCollisions) {
+            uiElements.totalCollisions.textContent = gameState.totalCollisions;
+        }
+
         if (uiElements.gameOverScreen) {
             uiElements.gameOverScreen.classList.remove('hidden');
         }
+        
     }
 
     gameLoop() {
         if (!this.isRunning || gameState.scene !== 'playing') return;
         const deltaTime = Math.min(this.clock.getDelta(), 0.05);
+        gameState.totalPlayTime += deltaTime;
         try {
             world.step(1 / 60, deltaTime, 3);
             if (car) car.update(deltaTime);
@@ -411,7 +426,7 @@ class GameEngine {
                 gameState.maxSpeedReached = Math.max(gameState.maxSpeedReached, car.currentSpeed);
                 gameState.distance = Math.abs(car.position.z);
             }
-            gameState.score = gameState.distance * 0.1 + gameState.upgradesCollected * 200;
+            gameState.score = gameState.distance * 0.01 + gameState.upgradesCollected * 5;
             this.checkCollisions();
             if (renderer && scene && camera) renderer.render(scene, camera);
         } catch (error) {
@@ -420,6 +435,29 @@ class GameEngine {
             return;
         }
         requestAnimationFrame(() => this.gameLoop());
+    }
+
+    togglePause() {
+        
+        if (gameState.scene !== 'playing') return;
+
+        this.isPaused = !this.isPaused;
+
+        if (this.isPaused) {
+            this.isRunning = false;
+            
+            uiElements.pauseScore.textContent = Math.floor(gameState.score);
+            uiElements.pauseMaxSpeed.textContent = Math.floor(gameState.maxSpeedReached);
+            uiElements.pauseUpgradesHeld.textContent = car.activeUpgrades.length;
+            uiElements.pauseScreen.classList.remove('hidden');
+        } else {
+            this.isRunning = true;
+            
+            uiElements.pauseScreen.classList.add('hidden');
+            
+            this.clock.getDelta();
+            this.gameLoop(); 
+        }
     }
 
     updateCamera() {
@@ -438,29 +476,22 @@ class GameEngine {
         if (uiElements.speedValue) uiElements.speedValue.textContent = Math.floor(gameState.speed);
     }
 
-    
     checkCollisions() {
         if (!car || !obstacleManager || !upgradeManager) return;
-
         try {
-            
-
-            
             const carBox = new THREE.Box3().setFromObject(car.mesh);
-            
             for (let i = upgradeManager.upgrades.length - 1; i >= 0; i--) {
                 const upgrade = upgradeManager.upgrades[i];
                 if (upgrade.mesh && upgrade.mesh.position.z < car.position.z + 25 && upgrade.mesh.position.z > car.position.z - 8) {
                     const upgradeBox = new THREE.Box3().setFromObject(upgrade.mesh);
                     if (carBox.intersectsBox(upgradeBox)) {
                         this.collectUpgrade(upgrade.type);
-                        upgradeManager.removeUpgrade(i); 
+                        upgradeManager.removeUpgrade(i);
                         gameState.upgradesCollected++;
                     }
                 }
             }
 
-            
             const roadBoundary = CONFIG.gameSettings.roadWidth / 2 - 1;
             if (Math.abs(car.position.x) > roadBoundary) {
                 car.position.x = Math.sign(car.position.x) * roadBoundary;
@@ -481,7 +512,7 @@ class GameEngine {
         switch (type) {
             case 'speed': car.maxSpeed += CONFIG.upgradeSettings.maxSpeedBoost; gameState.potentialTopSpeed += CONFIG.upgradeSettings.maxSpeedBoost; notificationText += ` +${CONFIG.upgradeSettings.maxSpeedBoost}`; break;
             case 'resistance': car.collisionResistance += CONFIG.upgradeSettings.collisionResistanceBoost; notificationText += ` +${CONFIG.upgradeSettings.collisionResistanceBoost}`; break;
-            case 'tires': car.dragCoefficient -= CONFIG.upgradeSettings.dragReduction; break;
+            case 'tires': car.turnSpeed += CONFIG.upgradeSettings.turnSpeedBoost; break; 
             case 'brakes': car.brakeForce += CONFIG.upgradeSettings.brakeImprovement; break;
         }
         this.showAcquiredUpgradeNotification(type, notificationText);
@@ -499,22 +530,16 @@ class GameEngine {
         setTimeout(() => { if (notification.parentNode) notification.parentNode.removeChild(notification); }, 4900);
     }
     
-    
     updateCurrentUpgradesDisplay() {
         if (!uiElements.currentUpgradesIconList || !car) return;
-
-        uiElements.currentUpgradesIconList.innerHTML = ''; 
-
+        uiElements.currentUpgradesIconList.innerHTML = '';
         car.activeUpgrades.forEach(type => {
             const info = upgradeInfo[type];
             const iconWrapper = document.createElement('div');
             iconWrapper.className = 'current-upgrade-icon added';
             iconWrapper.style.borderColor = info.color;
-            
             iconWrapper.title = info.name;
-            
             iconWrapper.innerHTML = info.icon;
-            
             uiElements.currentUpgradesIconList.appendChild(iconWrapper);
         });
     }
@@ -536,11 +561,12 @@ class Car {
         this.currentSpeed = 0;
         this.maxSpeed = CONFIG.gameSettings.maxSpeed;
         this.collisionResistance = 0;
-        this.dragCoefficient = CONFIG.carPhysics.dragCoefficient;
-        this.brakeForce = 1;
+        this.turnSpeed = CONFIG.gameSettings.turnSpeed; 
+        this.brakeForce = CONFIG.gameSettings.brakeForce;
         this.activeUpgrades = [];
         this.createMesh();
     }
+
     createMesh() {
         const bodyGeometry = new THREE.BoxGeometry(2.5, 1.2, 5);
         const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0x32b8c6 });
@@ -569,21 +595,21 @@ class Car {
         this.body.position.set(0, 2, 0);
         world.addBody(this.body);
     }
+
     update(deltaTime) {
         let turnInput = 0;
         if (inputState.turnLeft) turnInput += 1;
         if (inputState.turnRight) turnInput -= 1;
         if (inputState.gyroEnabled) turnInput += inputState.gyroTilt;
         const steeringMultiplier = Math.min(this.currentSpeed / 15, 1);
-        this.rotation += turnInput * CONFIG.gameSettings.turnSpeed * steeringMultiplier;
+        this.rotation += turnInput * this.turnSpeed * steeringMultiplier; 
         if (inputState.accelerate) {
             this.currentSpeed += CONFIG.gameSettings.acceleration;
         } else if (inputState.brake) {
             this.currentSpeed -= CONFIG.gameSettings.acceleration * 2.5 * this.brakeForce;
         } else {
-            this.currentSpeed *= CONFIG.gameSettings.deceleration;
+            this.currentSpeed *= (1 - CONFIG.carPhysics.dragCoefficient * deltaTime);
         }
-        this.currentSpeed *= (1 - this.dragCoefficient * deltaTime);
         this.currentSpeed = Math.max(0, Math.min(this.currentSpeed, this.maxSpeed));
         this.velocity.x = -Math.sin(this.rotation) * this.currentSpeed * deltaTime;
         this.velocity.z = -Math.cos(this.rotation) * this.currentSpeed * deltaTime;
@@ -593,17 +619,19 @@ class Car {
         this.body.position.set(this.position.x, this.position.y + 1, this.position.z);
         this.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), this.rotation);
     }
+
     removeLastUpgrade() {
         if (this.activeUpgrades.length === 0) return null;
         const lostUpgradeType = this.activeUpgrades.pop();
         switch (lostUpgradeType) {
             case 'speed': this.maxSpeed = Math.max(CONFIG.gameSettings.maxSpeed, this.maxSpeed - CONFIG.upgradeSettings.maxSpeedBoost); break;
             case 'resistance': this.collisionResistance = Math.max(0, this.collisionResistance - CONFIG.upgradeSettings.collisionResistanceBoost); break;
-            case 'tires': this.dragCoefficient += CONFIG.upgradeSettings.dragReduction; break;
+            case 'tires': this.turnSpeed = Math.max(CONFIG.gameSettings.turnSpeed, this.turnSpeed - CONFIG.upgradeSettings.turnSpeedBoost); break; 
             case 'brakes': this.brakeForce = Math.max(1, this.brakeForce - CONFIG.upgradeSettings.brakeImprovement); break;
         }
         return lostUpgradeType;
     }
+
     reset() {
         this.position.set(0, 0, 0);
         this.velocity.set(0, 0, 0);
@@ -611,7 +639,7 @@ class Car {
         this.currentSpeed = 0;
         this.maxSpeed = CONFIG.gameSettings.maxSpeed;
         this.collisionResistance = 0;
-        this.dragCoefficient = CONFIG.carPhysics.dragCoefficient;
+        this.turnSpeed = CONFIG.gameSettings.turnSpeed; 
         this.brakeForce = 1;
         this.activeUpgrades = [];
         this.mesh.position.copy(this.position);
@@ -686,20 +714,17 @@ class RoadManager {
     }
     update(carZ) {
         const currentSegmentIndex = Math.floor(carZ / CONFIG.gameSettings.roadSegmentLength);
-        const neededMinIndex = currentSegmentIndex - CONFIG.gameSettings.segmentsAhead;
-        const neededMaxIndex = currentSegmentIndex + CONFIG.gameSettings.segmentsBehind;
-        const existingIndices = this.segments.map(s => s.index);
-        const currentMinIndex = existingIndices.length > 0 ? Math.min(...existingIndices) : 0;
-        const currentMaxIndex = existingIndices.length > 0 ? Math.max(...existingIndices) : 0;
-        for (let i = neededMinIndex; i < currentMinIndex; i++) this.createRoadSegment(i);
-        for (let i = currentMaxIndex + 1; i <= neededMaxIndex; i++) this.createRoadSegment(i);
+        const neededMinIndex = currentSegmentIndex - CONFIG.gameSettings.segmentsBehind;
+        const neededMaxIndex = currentSegmentIndex + CONFIG.gameSettings.segmentsAhead;
         this.segments = this.segments.filter(segment => {
-            if (segment.index > neededMaxIndex || segment.index < neededMinIndex) {
+            if (segment.index < neededMinIndex || segment.index > neededMaxIndex) {
                 this.removeSegment(segment);
                 return false;
             }
             return true;
         });
+        for (let i = neededMinIndex; i < Math.min(...this.segments.map(s => s.index), Infinity); i++) this.createRoadSegment(i);
+        for (let i = Math.max(...this.segments.map(s => s.index), -Infinity) + 1; i <= neededMaxIndex; i++) this.createRoadSegment(i);
     }
     removeSegment(segment) {
         segment.meshes.forEach(mesh => {
@@ -727,8 +752,7 @@ class ObstacleManager {
     }
     update(deltaTime, carZ) {
         const distanceTraveled = Math.abs(carZ);
-        const spawnInterval = 30;
-        if (distanceTraveled > this.lastSpawnZ + spawnInterval) {
+        if (Math.random() < CONFIG.obstacleSettings.spawnChance && distanceTraveled > this.lastSpawnZ + 30) {
             this.spawnObstacle(carZ - CONFIG.obstacleSettings.spawnDistance);
             this.lastSpawnZ = distanceTraveled;
         }
@@ -747,7 +771,7 @@ class ObstacleManager {
         });
     }
     spawnObstacle(z) {
-        const numObstacles = Math.floor(Math.random() * 2) + 1;
+        const numObstacles = Math.floor(Math.random() * (CONFIG.obstacleSettings.maxObstaclesPerSegment)) + 1;
         const laneWidth = CONFIG.gameSettings.roadWidth / 4;
         const usedLanes = [];
         for (let i = 0; i < numObstacles; i++) {
@@ -778,57 +802,70 @@ class ObstacleManager {
         body.position.set(x, height/2, z);
         world.addBody(body);
         
-        
         const obstacleObject = { type: 'barricade', mesh, body, laneX: x, hasCollided: false };
 
         body.addEventListener('collide', (e) => {
+            if (e.body !== car.body || obstacleObject.hasCollided) return;
+
+            obstacleObject.hasCollided = true;
+            gameState.totalCollisions++;
             
-            if (e.body !== car.body || obstacleObject.hasCollided) {
-                return;
+            
+            const speedRatio = car.currentSpeed / car.maxSpeed;
+
+            const resistanceUpgradesCount = car.activeUpgrades.filter(up => up === 'resistance').length;
+            const thresholdBonus = resistanceUpgradesCount * 0.01; 
+
+            const speedThresholds = {
+                level1: 0.08 + thresholdBonus,
+                level2: 0.25 + thresholdBonus,
+                level3: 0.50 + thresholdBonus,
+                level4: 0.85 + thresholdBonus
+            };
+            
+            let upgradesToRemove = 0;
+            if (speedRatio >= speedThresholds.level4) {
+                upgradesToRemove = 4;
+            } else if (speedRatio >= speedThresholds.level3) {
+                upgradesToRemove = 3;
+            } else if (speedRatio >= speedThresholds.level2) {
+                upgradesToRemove = 2;
+            } else if (speedRatio >= speedThresholds.level1) {
+                upgradesToRemove = 1;
             }
-
-            const carSpeed = car.body.velocity.length();
-            const highSpeedThreshold = 15;
-
-            if (carSpeed > highSpeedThreshold) {
-                if (car.activeUpgrades.length > 0) {
-                    
-                    
-                    obstacleObject.hasCollided = true; 
-
-                    const lostUpgrade = car.removeLastUpgrade();
-                    gameState.upgradesCollected--;
-
-                    if (lostUpgrade === 'speed') {
-                        gameState.potentialTopSpeed -= CONFIG.upgradeSettings.maxSpeedBoost;
-                    }
-
-                    gameEngine.showAcquiredUpgradeNotification('lost', `LOST: ${lostUpgrade.toUpperCase()}!`);
-                    gameEngine.updateCurrentUpgradesDisplay();
-
-                    const backwardImpulse = car.body.velocity.clone().unit().negate().scale(carSpeed * 1.5);
-                    car.body.applyImpulse(backwardImpulse, car.body.position);
-                    car.currentSpeed = 0;
-
-                    
-                    setTimeout(() => {
-                        const obstacleIndex = this.obstacles.findIndex(obs => obs.body.id === body.id);
-                        if (obstacleIndex !== -1) {
-                            this.removeObstacle(obstacleIndex);
+            
+            
+            const upgradeLossReduction = Math.floor(resistanceUpgradesCount / 10);
+            upgradesToRemove = Math.max(0, upgradesToRemove - upgradeLossReduction);
+            
+            if (upgradesToRemove > 0) {
+                if (car.activeUpgrades.length >= upgradesToRemove) {
+                    for (let i = 0; i < upgradesToRemove; i++) {
+                        const lostUpgrade = car.removeLastUpgrade();
+                        if (lostUpgrade) {
+                             gameState.upgradesCollected--;
+                             if (lostUpgrade === 'speed') gameState.potentialTopSpeed -= CONFIG.upgradeSettings.maxSpeedBoost;
+                             gameEngine.showAcquiredUpgradeNotification('lost', `LOST: ${lostUpgrade.toUpperCase()}!`);
                         }
-                    }, 0);
+                    }
+                    gameEngine.updateCurrentUpgradesDisplay();
                 } else {
                     gameEngine.gameOver();
+                    return;
                 }
-            } else {
-                 
-                const pushForce = car.body.velocity.clone().scale(body.mass * 0.5);
-                body.applyImpulse(pushForce, e.contact.ri);
-                
-                const slowDownFactor = 0.5;
-                car.body.velocity.scale(slowDownFactor, car.body.velocity);
-                car.currentSpeed *= slowDownFactor;
             }
+            
+            
+            const backwardImpulse = car.body.velocity.clone().unit().negate().scale(car.currentSpeed * 1.5);
+            car.body.applyImpulse(backwardImpulse, car.body.position);
+            car.currentSpeed *= 0.2;
+
+            setTimeout(() => {
+                const obstacleIndex = this.obstacles.findIndex(obs => obs.body && obs.body.id === body.id);
+                if (obstacleIndex !== -1) {
+                    this.removeObstacle(obstacleIndex);
+                }
+            }, 100);
         });
         
         this.obstacles.push(obstacleObject);
@@ -883,7 +920,7 @@ class UpgradeManager {
     }
     update(deltaTime, carZ) {
         const distanceTraveled = Math.abs(carZ);
-        if (distanceTraveled > this.lastSpawnZ + 120) {
+        if (Math.random() < CONFIG.upgradeSettings.spawnChance && distanceTraveled > this.lastSpawnZ + 120) {
             this.spawnUpgrade(carZ - CONFIG.upgradeSettings.spawnDistance);
             this.lastSpawnZ = distanceTraveled;
         }

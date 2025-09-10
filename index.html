@@ -107,6 +107,16 @@
                         <div class="stat-value" id="maxUpgradesHeld">0</div>
                         <div class="stat-unit">ITEMS</div>
                     </div>
+                    <div class="stat">
+                        <div class="stat-label">TOTAL PLAY TIME</div>
+                        <div class="stat-value" id="totalPlayTime">0</div>
+                        <div class="stat-unit">SEC</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">TOTAL COLLISIONS</div>
+                        <div class="stat-value" id="totalCollisions">0</div>
+                        <div class="stat-unit"></div>
+                    </div>
                 </div>
 
                 <div class="game-over-buttons">
@@ -115,6 +125,32 @@
                 </div>
             </div>
         </div>
+        <div class="pause-screen hidden" id="pauseScreen">
+            <div class="pause-content">
+                <h2>GAME PAUSED</h2>
+                
+                <div class="pause-stats">
+                     <div class="stat">
+                        <div class="stat-label">CURRENT SCORE</div>
+                        <div class="stat-value" id="pauseScore">0</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">MAX SPEED REACHED</div>
+                        <div class="stat-value" id="pauseMaxSpeed">0</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">UPGRADES HELD</div>
+                        <div class="stat-value" id="pauseUpgradesHeld">0</div>
+                    </div>
+                </div>
+
+                <div class="pause-buttons">
+                    <button class="btn btn--primary" id="resumeBtn">RESUME</button>
+                    <button class="btn btn--secondary" id="pauseMainMenuBtn">MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
         <div class="instructions hidden" id="instructions">
             Press WASD or Arrow Keys to drive • Collect upgrades • Avoid obstacles
         </div>
