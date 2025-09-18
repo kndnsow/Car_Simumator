@@ -322,7 +322,13 @@ class GameEngine {
 
     enableGyroListener() {
         window.addEventListener('deviceorientation', (event) => {
-            const tilt = Math.max(-1, Math.min(1, event.gamma / 30));
+            const tilt = 0;
+            if (event.gamma > -45 && event.gamma < 45 ) {
+                tilt = Math.max(-1, Math.min(1, event.gamma / 30));
+            }
+            else {
+                tilt = Math.max(-1, Math.min(1, event.beta / 30));
+            }
             inputState.gyroTilt = - tilt;
             if (!uiElements.permissionModal.classList.contains('hidden') && uiElements.motionIndicatorDot) {
                 uiElements.motionIndicatorDot.style.left = `${(tilt + 1) / 2 * 100}%`;
