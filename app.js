@@ -322,13 +322,16 @@ class GameEngine {
 
     enableGyroListener() {
         window.addEventListener('deviceorientation', (event) => {
-            const tilt = 0;
-            if (event.gamma > -45 && event.gamma < 45 ) {
-                tilt = Math.max(-1, Math.min(1, event.gamma / 30));
+            const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+            if (isPortrait) {
+                tiltValue = event.gamma;
+            } else {
+                tiltValue = event.beta;
             }
-            else {
-                tilt = Math.max(-1, Math.min(1, event.beta / 30));
-            }
+            const maxTilt = 45;
+            const clampedTilt = Math.max(-maxTilt, Math.min(maxTilt, tiltValue));
+            const tilt = (clampedTilt + maxTilt) / (2 * maxTilt) * 100;
+            
             inputState.gyroTilt = - tilt;
             if (!uiElements.permissionModal.classList.contains('hidden') && uiElements.motionIndicatorDot) {
                 uiElements.motionIndicatorDot.style.left = `${(tilt + 1) / 2 * 100}%`;
